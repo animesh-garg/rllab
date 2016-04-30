@@ -64,6 +64,20 @@ class Env(object):
             action_space=self.action_space,
         )
 
+    @property
+    def horizon(self):
+        """
+        Horizon of the environment, if it has one
+        """
+        raise NotImplementedError
+
+
+    def terminate(self):
+        """
+        Clean up operation,
+        """
+        pass
+
 
 _Step = collections.namedtuple("Step", ["observation", "reward", "done", "info"])
 
