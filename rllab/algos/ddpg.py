@@ -7,7 +7,7 @@ from rllab.plotter import plotter
 from functools import partial
 import rllab.misc.logger as logger
 import theano.tensor as TT
-import cPickle as pickle
+import pickle as pickle
 import numpy as np
 import pyprind
 import lasagne
@@ -111,7 +111,8 @@ class DDPG(RLAlgorithm):
             n_updates_per_sample=1,
             scale_reward=1.0,
             include_horizon_terminal_transitions=False,
-            plot=False):
+            plot=False,
+            pause_for_plot=False):
         """
         :param env: Environment
         :param policy: Policy
@@ -137,6 +138,7 @@ class DDPG(RLAlgorithm):
         :param include_horizon_terminal_transitions: whether to include transitions with terminal=True because the
         horizon was reached. This might make the Q value back up less stable for certain tasks.
         :param plot: Whether to visualize the policy performance after each eval_interval.
+        :param pause_for_plot: Whether to pause before continuing when plotting.
         :return:
         """
         self.env = env
@@ -169,6 +171,7 @@ class DDPG(RLAlgorithm):
         self.n_updates_per_sample = n_updates_per_sample
         self.include_horizon_terminal_transitions = include_horizon_terminal_transitions
         self.plot = plot
+        self.pause_for_plot = pause_for_plot
 
         self.qf_loss_averages = []
         self.policy_surr_averages = []
@@ -206,10 +209,10 @@ class DDPG(RLAlgorithm):
 
         sample_policy = pickle.loads(pickle.dumps(self.policy))
 
-        for epoch in xrange(self.n_epochs):
+        for epoch in range(self.n_epochs):
             logger.push_prefix('epoch #%d | ' % epoch)
             logger.log("Training started")
-            for epoch_itr in pyprind.prog_bar(xrange(self.epoch_length)):
+            for epoch_itr in pyprind.prog_bar(range(self.epoch_length)):
                 # Execute policy
                 if terminal:  # or path_length > self.max_path_length:
                     # Note that if the last time step ends an episode, the very
@@ -238,7 +241,7 @@ class DDPG(RLAlgorithm):
                 observation = next_observation
 
                 if pool.size >= self.min_pool_size:
-                    for update_itr in xrange(self.n_updates_per_sample):
+                    for update_itr in range(self.n_updates_per_sample):
                         # Train policy
                         batch = pool.random_batch(self.batch_size)
                         self.do_training(itr, batch)
@@ -253,6 +256,11 @@ class DDPG(RLAlgorithm):
                 logger.save_itr_params(epoch, params)
             logger.dump_tabular(with_prefix=False)
             logger.pop_prefix()
+            if self.plot:
+                self.update_plot()
+                if self.pause_for_plot:
+                    input("Plotting evaluation run: Press Enter to "
+                              "continue...")
         self.env.terminate()
         self.policy.terminate()
 
@@ -430,6 +438,10 @@ class DDPG(RLAlgorithm):
         self.q_averages = []
         self.y_averages = []
         self.es_path_returns = []
+
+    def update_plot(self):
+        if self.plot:
+            plotter.update_plot(self.policy, self.max_path_length)
 
     def get_epoch_snapshot(self, epoch):
         return dict(

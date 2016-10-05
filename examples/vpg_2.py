@@ -1,4 +1,4 @@
-from __future__ import print_function
+
 from rllab.envs.box2d.cartpole_env import CartpoleEnv
 from rllab.baselines.linear_feature_baseline import LinearFeatureBaseline
 from rllab.policies.gaussian_mlp_policy import GaussianMLPPolicy
@@ -70,18 +70,18 @@ f_train = theano.function(
     allow_input_downcast=True
 )
 
-for _ in xrange(n_itr):
+for _ in range(n_itr):
 
     paths = []
 
-    for _ in xrange(N):
+    for _ in range(N):
         observations = []
         actions = []
         rewards = []
 
         observation = env.reset()
 
-        for _ in xrange(T):
+        for _ in range(T):
             # policy.get_action() returns a pair of values. The second one returns a dictionary, whose values contains
             # sufficient statistics for the action distribution. It should at least contain entries that would be
             # returned by calling policy.dist_info(), which is the non-symbolic analog of policy.dist_info_sym().
@@ -108,19 +108,26 @@ for _ in xrange(n_itr):
         )
         path_baseline = baseline.predict(path)
         advantages = []
+        returns = []
         return_so_far = 0
-        for t in xrange(len(rewards) - 1, -1, -1):
+        for t in range(len(rewards) - 1, -1, -1):
             return_so_far = rewards[t] + discount * return_so_far
+            returns.append(return_so_far)
             advantage = return_so_far - path_baseline[t]
             advantages.append(advantage)
         # The advantages are stored backwards in time, so we need to revert it
         advantages = np.array(advantages[::-1])
+        # And we need to do the same thing for the list of returns
+        returns = np.array(returns[::-1])
 
         advantages = (advantages - np.mean(advantages)) / (np.std(advantages) + 1e-8)
 
         path["advantages"] = advantages
+        path["returns"] = returns
 
         paths.append(path)
+
+    baseline.fit(paths)
 
     observations = np.concatenate([p["observations"] for p in paths])
     actions = np.concatenate([p["actions"] for p in paths])
